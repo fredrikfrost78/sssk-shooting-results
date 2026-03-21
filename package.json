@@ -1,0 +1,38 @@
+{
+  "name": "sssk-shooting-results",
+  "version": "1.0.0",
+  "description": "Visning av skytteresultat",
+  "author": "Fredrik Frost",
+  "main": "electron/main.cjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fredrikfrost78/sssk-shooting-results.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "backend": "node server.js",
+    "start:all": "concurrently \"npm run backend\" \"npm run dev\"",
+    "build": "vite build",
+    "electron": "npm run build && electron .",
+    "pack:win": "npm run build && electron-builder --win --publish never"
+  },
+  "type": "module",
+  "build": {
+    "appId": "se.sssk.shootingresults",
+    "productName": "SSSK Shooting Results",
+    "files": [
+      "dist/**",
+      "electron/**",
+      "server.js",
+      "server-config.json",
+      "package.json",
+      "node_modules/**"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

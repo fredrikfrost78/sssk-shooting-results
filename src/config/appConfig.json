@@ -1,0 +1,13 @@
+{
+  "resultsUrl": "http://localhost:3001/results",
+  "pollingIntervalMs": 5000,
+  "enableScrolling": true,
+  "columns": {
+    "klass": "Klass",
+    "namn": "Namn",
+    "klubb": "Klubb",
+    "series": ["Serie1", "Serie2", "Serie3", "Serie4", "Serie5", "Serie6", "Serie7"],
+    "antalX": "X",
+    "summa": "Summa"
+  }
+}
