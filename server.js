@@ -3,18 +3,74 @@ import cors from 'cors'
 import path from 'node:path'
 import fs from 'node:fs'
 import serverConfig from './server-config.json' with { type: 'json' }
+import os from 'node:os'
+import bundledServerConfig from './server-config.json' with { type: 'json' }
 
 const app = express()
 app.use(cors())
 
-const PORT = serverConfig.port ?? 3001
-const RESULTS_DIR = serverConfig.resultsDir
+const CONFIG_DIR = path.join(
+    os.homedir(),
+    'AppData',
+    'Roaming',
+    'SSSK Shooting Results',
+)
+
+const CONFIG_PATH = path.join(CONFIG_DIR, 'server-config.json')
+
+function ensureConfigFile() {
+    if (!fs.existsSync(CONFIG_DIR)) {
+        fs.mkdirSync(CONFIG_DIR, { recursive: true })
+    }
+
+    if (!fs.existsSync(CONFIG_PATH)) {
+        fs.writeFileSync(
+            CONFIG_PATH,
+            JSON.stringify(bundledServerConfig, null, 2),
+            'utf-8',
+        )
+    }
+}
+
+function readServerConfig() {
+    ensureConfigFile()
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+}
+
+function writeServerConfig(nextConfig) {
+    ensureConfigFile()
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(nextConfig, null, 2), 'utf-8')
+}
+
+const initialConfig = readServerConfig()
+const PORT = initialConfig.port ?? 3001
 
 app.get('/config', (req, res) => {
-    res.json(serverConfig)
+    res.json(readServerConfig())
+})
+
+app.post('/config/results-dir', express.json(), (req, res) => {
+    const { resultsDir } = req.body ?? {}
+
+    if (typeof resultsDir !== 'string' || resultsDir.trim() === '') {
+        res.status(400).json({ message: 'Ogiltig resultatmapp' })
+        return
+    }
+
+    const currentConfig = readServerConfig()
+    const nextConfig = {
+        ...currentConfig,
+        resultsDir: resultsDir.trim(),
+    }
+
+    writeServerConfig(nextConfig)
+    res.json(nextConfig)
 })
 
 app.get('/results', (req, res) => {
+    const serverConfig = readServerConfig()
+    const RESULTS_DIR = serverConfig.resultsDir
+
     const latestExcelFile = fs
         .readdirSync(RESULTS_DIR)
         .filter(fileName => fileName.endsWith('.xlsx') || fileName.endsWith('.xls'))
@@ -39,6 +95,8 @@ app.get('/results', (req, res) => {
 })
 
 app.listen(PORT, () => {
+    const currentConfig = readServerConfig()
     console.log(`Backend kör på http://localhost:${PORT}`)
-    console.log(`Läser senaste Excel-fil från: ${RESULTS_DIR}`)
+    console.log(`Config används: ${CONFIG_PATH}`)
+    console.log(`Läser senaste Excel-fil från: ${currentConfig.resultsDir}`)
 })

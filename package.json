@@ -14,7 +14,7 @@
     "start:all": "concurrently \"npm run backend\" \"npm run dev\"",
     "build": "vite build",
     "electron": "npm run build && electron .",
-    "pack:win": "npm run build && electron-builder --win --publish never"
+    "pack:win": "npm run build && electron-builder --win --x64 --publish never"
   },
   "type": "module",
   "build": {

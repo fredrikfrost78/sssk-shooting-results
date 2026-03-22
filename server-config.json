@@ -2,6 +2,7 @@
   "resultsDir": "/Users/fredrikfrost/OTHER_repos/sssk-shooting-results/data",
   "port": 3001,
   "enableScrolling": true,
+  "sheetName": "Resultat",
   "columns": {
     "klass": "Klass",
     "namn": "Namn",

@@ -14,6 +14,8 @@ type ResultRow = {
 
 type ServerConfig = {
     enableScrolling: boolean
+    sheetName?: string
+    sheetIndex?: number
     columns: {
         klass: string
         namn: string
@@ -37,6 +39,8 @@ const parseNumber = (value: unknown): number => {
 }
 const defaultServerConfig: ServerConfig = {
     enableScrolling: true,
+    sheetName: 'Resultat',
+    sheetIndex: 0,
     columns: {
         klass: 'Klass',
         namn: 'Namn',
@@ -165,9 +169,18 @@ export default function ShootingResultsTV(): ReactElement {
                 }
 
                 const buffer = await response.arrayBuffer()
-                const workbook = XLSX.read(buffer, {type: 'array'})
+                const workbook = XLSX.read(buffer, { type: 'array' })
 
-                const sheet = workbook.Sheets[workbook.SheetNames[0]]
+                const selectedSheetName =
+                    nextServerConfig.sheetName && workbook.Sheets[nextServerConfig.sheetName]
+                        ? nextServerConfig.sheetName
+                        : workbook.SheetNames[nextServerConfig.sheetIndex ?? 0]
+
+                if (!selectedSheetName) {
+                    throw new Error('Kunde inte hitta något blad i Excel-filen')
+                }
+
+                const sheet = workbook.Sheets[selectedSheetName]
                 const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
                     defval: '',
                 })
