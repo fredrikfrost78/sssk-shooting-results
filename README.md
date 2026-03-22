@@ -6,4 +6,4 @@ run with
 `npm run electron`
 
 package with
-npm run pack:win
+`npm run pack:win`

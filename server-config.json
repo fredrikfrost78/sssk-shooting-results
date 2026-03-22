@@ -1,4 +1,13 @@
 {
   "resultsDir": "/Users/fredrikfrost/OTHER_repos/sssk-shooting-results/data",
-  "port": 3001
+  "port": 3001,
+  "enableScrolling": true,
+  "columns": {
+    "klass": "Klass",
+    "namn": "Namn",
+    "klubb": "Klubb",
+    "series": ["Serie1", "Serie2", "Serie3", "Serie4", "Serie5", "Serie6", "Serie7"],
+    "antalX": "X",
+    "summa": "Summa"
+  }
 }

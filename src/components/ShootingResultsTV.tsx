@@ -1,4 +1,4 @@
-import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react'
+import {type ReactElement, useEffect, useMemo, useRef, useState} from 'react'
 import * as XLSX from 'xlsx'
 import './ShootingResultsTV.css'
 import config from '../config/appConfig.json'
@@ -12,6 +12,18 @@ type ResultRow = {
     summa: number
 }
 
+type ServerConfig = {
+    enableScrolling: boolean
+    columns: {
+        klass: string
+        namn: string
+        klubb: string
+        series: string[]
+        antalX: string
+        summa: string
+    }
+}
+
 type GroupedResults = Record<string, ResultRow[]>
 
 const parseNumber = (value: unknown): number => {
@@ -23,19 +35,31 @@ const parseNumber = (value: unknown): number => {
     }
     return 0
 }
+const defaultServerConfig: ServerConfig = {
+    enableScrolling: true,
+    columns: {
+        klass: 'Klass',
+        namn: 'Namn',
+        klubb: 'Klubb',
+        series: ['Serie1', 'Serie2', 'Serie3', 'Serie4', 'Serie5', 'Serie6', 'Serie7'],
+        antalX: 'X',
+        summa: 'Summa',
+    },
+}
 
-const c = config.columns
-
-const normalizeRow = (row: Record<string, unknown>) => {
-    const series = c.series.map(col => parseNumber(row[col]))
+const normalizeRow = (
+    row: Record<string, unknown>,
+    columns: ServerConfig['columns'],
+): ResultRow => {
+    const series = columns.series.map(col => parseNumber(row[col]))
 
     return {
-        klass: String(row[c.klass] ?? ''),
-        namn: String(row[c.namn] ?? ''),
-        klubb: String(row[c.klubb] ?? ''),
+        klass: String(row[columns.klass] ?? ''),
+        namn: String(row[columns.namn] ?? ''),
+        klubb: String(row[columns.klubb] ?? ''),
         series,
-        x: parseNumber(row[c.antalX]),
-        summa: parseNumber(row[c.summa]),
+        x: parseNumber(row[columns.antalX]),
+        summa: parseNumber(row[columns.summa]),
     }
 }
 
@@ -63,7 +87,7 @@ const groupAndSort = (rows: ResultRow[]): GroupedResults => {
 export default function ShootingResultsTV(): ReactElement {
     const [rows, setRows] = useState<ResultRow[]>([])
     const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-
+    const [serverConfig, setServerConfig] = useState<ServerConfig>(defaultServerConfig)
     const groupedResults = useMemo(() => groupAndSort(rows), [rows])
 
     const renderSections = (): ReactElement[] =>
@@ -77,7 +101,7 @@ export default function ShootingResultsTV(): ReactElement {
                         <th className="results-header-cell">Placering</th>
                         <th className="results-header-cell">Namn</th>
                         <th className="results-header-cell name-column">Klubb</th>
-                        {config.columns.series.map((_, index) => (
+                        {serverConfig.columns.series.map((_, index) => (
                             <th key={index} className="results-header-cell">
                                 Serie {index + 1}
                             </th>
@@ -97,15 +121,15 @@ export default function ShootingResultsTV(): ReactElement {
                                 <td className="results-cell">{row.namn}</td>
                                 <td className="results-cell">{row.klubb}</td>
                                 {row.series.map((value: string, i: number) => (
-                                    <td key={i}  className="results-cell">{value}</td>
+                                    <td key={i} className="results-cell">{value}</td>
                                 ))}
                                 <td className="results-cell">{row.x}</td>
                                 <td className="results-cell total-cell">{row.summa}</td>
                             </tr>
                         ) : (
-                            <tr key={`empty-${klass}-${index}`}  className="results-row">
+                            <tr key={`empty-${klass}-${index}`} className="results-row">
                                 <td
-                                    colSpan={config.columns.series.length + 5}
+                                    colSpan={serverConfig.columns.series.length + 5}
                                     className="results-cell empty-row-cell"
                                 >
                                     &nbsp;
@@ -121,6 +145,19 @@ export default function ShootingResultsTV(): ReactElement {
     useEffect(() => {
         const load = async (): Promise<void> => {
             try {
+                const configResponse = await fetch('http://localhost:3001/config')
+
+                if (!configResponse.ok) {
+                    throw new Error(`Kunde inte läsa server-config (${configResponse.status})`)
+                }
+
+                const nextServerConfig = (await configResponse.json()) as ServerConfig
+
+                setServerConfig({
+                    enableScrolling: nextServerConfig.enableScrolling ?? defaultServerConfig.enableScrolling,
+                    columns: nextServerConfig.columns ?? defaultServerConfig.columns,
+                })
+
                 const response = await fetch(config.resultsUrl)
 
                 if (!response.ok) {
@@ -128,14 +165,17 @@ export default function ShootingResultsTV(): ReactElement {
                 }
 
                 const buffer = await response.arrayBuffer()
-                const workbook = XLSX.read(buffer, { type: 'array' })
+                const workbook = XLSX.read(buffer, {type: 'array'})
 
                 const sheet = workbook.Sheets[workbook.SheetNames[0]]
                 const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
                     defval: '',
                 })
 
-                const parsed = raw.map(normalizeRow)
+                const parsed = raw.map(row =>
+                    normalizeRow(row, nextServerConfig.columns ?? defaultServerConfig.columns),
+                )
+
                 setRows(parsed)
             } catch (error) {
                 console.error('Fel vid inläsning av resultatfil:', error)
@@ -152,7 +192,7 @@ export default function ShootingResultsTV(): ReactElement {
 
     useEffect(() => {
         const container = scrollContainerRef.current
-        if (!config.enableScrolling || !container || rows.length === 0) return
+        if (!serverConfig.enableScrolling || !container || rows.length === 0) return
 
         let paused = false
 
@@ -161,9 +201,7 @@ export default function ShootingResultsTV(): ReactElement {
 
             const maxScrollTop = container.scrollHeight - container.clientHeight
 
-            console.log('Scrolling', container.scrollTop, maxScrollTop)
-
-            if (container.scrollTop+1 >= maxScrollTop) {
+            if (container.scrollTop + 1 >= maxScrollTop) {
                 paused = true
 
                 window.setTimeout(() => {
@@ -178,7 +216,7 @@ export default function ShootingResultsTV(): ReactElement {
         }, 40)
 
         return () => window.clearInterval(interval)
-    }, [rows])
+    }, [rows, serverConfig.enableScrolling])
 
     return (
         <div className="page">
@@ -192,11 +230,15 @@ export default function ShootingResultsTV(): ReactElement {
                         Inget resultat att presentera just nu.
                     </div>
                 ) : (
-                    <div className="scroll-container" ref={scrollContainerRef}>
+                    <div
+                        className="scroll-container"
+                        ref={scrollContainerRef}
+                        style={{overflowY: serverConfig.enableScrolling ? 'auto' : 'hidden'}}
+                    >
                         <div className="scroll-content">
                             {renderSections()}
 
-                            <div style={{ height: '80vh' }} />
+                            <div style={{height: '80vh'}}/>
                         </div>
                     </div>
                 )}

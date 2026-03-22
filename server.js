@@ -10,6 +10,10 @@ app.use(cors())
 const PORT = serverConfig.port ?? 3001
 const RESULTS_DIR = serverConfig.resultsDir
 
+app.get('/config', (req, res) => {
+    res.json(serverConfig)
+})
+
 app.get('/results', (req, res) => {
     const latestExcelFile = fs
         .readdirSync(RESULTS_DIR)
