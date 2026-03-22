@@ -20,6 +20,16 @@
   "build": {
     "appId": "se.sssk.shootingresults",
     "productName": "SSSK Shooting Results",
+    "extraResources": [
+      {
+        "from": "server.js",
+        "to": "server.js"
+      },
+      {
+        "from": "server-config.json",
+        "to": "server-config.json"
+      }
+    ],
     "files": [
       "dist/**",
       "electron/**",

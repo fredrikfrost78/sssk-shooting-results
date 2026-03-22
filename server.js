@@ -2,7 +2,6 @@ import express from 'express'
 import cors from 'cors'
 import path from 'node:path'
 import fs from 'node:fs'
-import serverConfig from './server-config.json' with { type: 'json' }
 import os from 'node:os'
 import bundledServerConfig from './server-config.json' with { type: 'json' }
 
@@ -10,9 +9,7 @@ const app = express()
 app.use(cors())
 
 const CONFIG_DIR = path.join(
-    os.homedir(),
-    'AppData',
-    'Roaming',
+    process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
     'SSSK Shooting Results',
 )
 
@@ -71,8 +68,21 @@ app.get('/results', (req, res) => {
     const serverConfig = readServerConfig()
     const RESULTS_DIR = serverConfig.resultsDir
 
-    const latestExcelFile = fs
-        .readdirSync(RESULTS_DIR)
+    if (!RESULTS_DIR || !fs.existsSync(RESULTS_DIR)) {
+        res.status(400).send('Ingen giltig resultatmapp är konfigurerad')
+        return
+    }
+
+    let files = []
+    try {
+        files = fs.readdirSync(RESULTS_DIR)
+    } catch (e) {
+        console.error('Kunde inte läsa katalog:', e)
+        res.status(500).send('Kunde inte läsa resultatmapp')
+        return
+    }
+
+    const latestExcelFile = files
         .filter(fileName => fileName.endsWith('.xlsx') || fileName.endsWith('.xls'))
         .map(fileName => ({
             fileName,

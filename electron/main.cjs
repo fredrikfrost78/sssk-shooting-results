@@ -1,23 +1,39 @@
 const { app, BrowserWindow, Menu, dialog } = require('electron')
 const path = require('node:path')
 const http = require('node:http')
-const { fork } = require('node:child_process')
+const { spawn } = require('node:child_process')
 
 let mainWindow = null
 let backendProcess = null
 const BACKEND_PORT = 3001
 
 function startBackend() {
-    const serverPath = path.join(__dirname, '..', 'server.js')
+    const isPackaged = app.isPackaged
 
-    backendProcess = fork(serverPath, {
-        cwd: path.join(__dirname, '..'),
+    const serverPath = isPackaged
+        ? path.join(process.resourcesPath, 'server.js')
+        : path.join(__dirname, '..', 'server.js')
+
+    const backendCwd = isPackaged
+        ? process.resourcesPath
+        : path.join(__dirname, '..')
+
+    backendProcess = spawn(process.execPath, [serverPath], {
+        cwd: backendCwd,
+        env: {
+            ...process.env,
+            ELECTRON_RUN_AS_NODE: '1',
+        },
         stdio: 'inherit',
-        env: { ...process.env },
+        windowsHide: true,
     })
 
     backendProcess.on('close', code => {
         console.log(`Backend avslutades med kod ${code}`)
+    })
+
+    backendProcess.on('error', error => {
+        console.error('Kunde inte starta backend:', error)
     })
 }
 
