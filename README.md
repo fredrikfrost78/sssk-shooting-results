@@ -7,3 +7,6 @@ run with
 
 package with
 `npm run pack:win`
+
+or create a .exe file with
+`npm run pack:win:portable`

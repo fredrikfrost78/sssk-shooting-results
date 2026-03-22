@@ -54,19 +54,26 @@ app.post('/config/results-dir', express.json(), (req, res) => {
         return
     }
 
-    const currentConfig = readServerConfig()
-    const nextConfig = {
-        ...currentConfig,
-        resultsDir: resultsDir.trim(),
-    }
+    try {
+        const currentConfig = readServerConfig()
+        const nextConfig = {
+            ...currentConfig,
+            resultsDir: resultsDir.trim(),
+        }
 
-    writeServerConfig(nextConfig)
-    res.json(nextConfig)
+        writeServerConfig(nextConfig)
+        console.log(`Sparade resultatmapp: ${nextConfig.resultsDir}`)
+        res.json(nextConfig)
+    } catch (error) {
+        console.error('Kunde inte spara resultatmapp:', error)
+        res.status(500).json({ message: 'Kunde inte spara resultatmapp' })
+    }
 })
 
 app.get('/results', (req, res) => {
     const serverConfig = readServerConfig()
     const RESULTS_DIR = serverConfig.resultsDir
+    console.log(`Använder resultatmapp: ${RESULTS_DIR}`)
 
     if (!RESULTS_DIR || !fs.existsSync(RESULTS_DIR)) {
         res.status(400).send('Ingen giltig resultatmapp är konfigurerad')
@@ -84,11 +91,20 @@ app.get('/results', (req, res) => {
 
     const latestExcelFile = files
         .filter(fileName => fileName.endsWith('.xlsx') || fileName.endsWith('.xls'))
-        .map(fileName => ({
-            fileName,
-            fullPath: path.join(RESULTS_DIR, fileName),
-            modifiedTime: fs.statSync(path.join(RESULTS_DIR, fileName)).mtimeMs,
-        }))
+        .map(fileName => {
+            try {
+                const fullPath = path.join(RESULTS_DIR, fileName)
+                return {
+                    fileName,
+                    fullPath,
+                    modifiedTime: fs.statSync(fullPath).mtimeMs,
+                }
+            } catch (error) {
+                console.error(`Kunde inte läsa filinformation för ${fileName}:`, error)
+                return null
+            }
+        })
+        .filter(Boolean)
         .sort((a, b) => b.modifiedTime - a.modifiedTime)[0]
 
     if (!latestExcelFile) {
