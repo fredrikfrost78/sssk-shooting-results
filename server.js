@@ -3,21 +3,22 @@ import cors from 'cors'
 import path from 'node:path'
 import fs from 'node:fs'
 import os from 'node:os'
-import bundledServerConfig from './server-config.json' with { type: 'json' }
+import bundledServerConfig from './server-config.json' with {type: 'json'}
 
 const app = express()
 app.use(cors())
 
-const CONFIG_DIR = path.join(
-    process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-    'SSSK Shooting Results',
-)
+function getPortableBaseDir() {
+    return process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath)
+}
+
+const CONFIG_DIR = getPortableBaseDir()
 
 const CONFIG_PATH = path.join(CONFIG_DIR, 'server-config.json')
 
 function ensureConfigFile() {
     if (!fs.existsSync(CONFIG_DIR)) {
-        fs.mkdirSync(CONFIG_DIR, { recursive: true })
+        fs.mkdirSync(CONFIG_DIR, {recursive: true})
     }
 
     if (!fs.existsSync(CONFIG_PATH)) {
@@ -29,9 +30,30 @@ function ensureConfigFile() {
     }
 }
 
+function getDefaultResultsDir() {
+    const exeDir = getPortableBaseDir()
+
+    try {
+        fs.accessSync(exeDir, fs.constants.W_OK)
+        return path.join(exeDir, 'data')
+    } catch {
+        return path.join(os.homedir(), 'SSSK Shooting Results', 'data')
+    }
+}
+
 function readServerConfig() {
     ensureConfigFile()
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+
+    if (!config.resultsDir || config.resultsDir.trim() === '') {
+        config.resultsDir = getDefaultResultsDir()
+    }
+
+    if (!fs.existsSync(config.resultsDir)) {
+        fs.mkdirSync(config.resultsDir, {recursive: true})
+    }
+
+    return config
 }
 
 function writeServerConfig(nextConfig) {
@@ -47,10 +69,10 @@ app.get('/config', (req, res) => {
 })
 
 app.post('/config/results-dir', express.json(), (req, res) => {
-    const { resultsDir } = req.body ?? {}
+    const {resultsDir} = req.body ?? {}
 
     if (typeof resultsDir !== 'string' || resultsDir.trim() === '') {
-        res.status(400).json({ message: 'Ogiltig resultatmapp' })
+        res.status(400).json({message: 'Ogiltig resultatmapp'})
         return
     }
 
@@ -66,7 +88,7 @@ app.post('/config/results-dir', express.json(), (req, res) => {
         res.json(nextConfig)
     } catch (error) {
         console.error('Kunde inte spara resultatmapp:', error)
-        res.status(500).json({ message: 'Kunde inte spara resultatmapp' })
+        res.status(500).json({message: 'Kunde inte spara resultatmapp'})
     }
 })
 

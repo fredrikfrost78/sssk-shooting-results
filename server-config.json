@@ -1,14 +1,23 @@
 {
-  "resultsDir": "/Users/fredrikfrost/OTHER_repos/sssk-shooting-results/data",
+  "resultsDir": "",
   "port": 3001,
   "enableScrolling": true,
-  "sheetName": "Resultat",
+  "competitionName": "Innesexan omgång 6",
+  "sheetName": "Omg 2",
   "columns": {
-    "klass": "Klass",
-    "namn": "Namn",
-    "klubb": "Klubb",
-    "series": ["Serie1", "Serie2", "Serie3", "Serie4", "Serie5", "Serie6", "Serie7"],
-    "antalX": "X",
-    "summa": "Summa"
+    "klass": "C",
+    "namn": "D",
+    "klubb": "E",
+    "series": [
+      "L",
+      "S",
+      "Z",
+      "AG",
+      "AN",
+      "AU",
+      "BB"
+    ],
+    "antalX": "BD",
+    "summa": "BC"
   }
 }

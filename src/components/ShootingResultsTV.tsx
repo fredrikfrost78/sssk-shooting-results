@@ -14,6 +14,7 @@ type ResultRow = {
 
 type ServerConfig = {
     enableScrolling: boolean
+    competitionName?: string
     sheetName?: string
     sheetIndex?: number
     columns: {
@@ -39,6 +40,7 @@ const parseNumber = (value: unknown): number => {
 }
 const defaultServerConfig: ServerConfig = {
     enableScrolling: true,
+    competitionName: 'Resultat',
     sheetName: 'Resultat',
     sheetIndex: 0,
     columns: {
@@ -51,19 +53,35 @@ const defaultServerConfig: ServerConfig = {
     },
 }
 
+const columnLetterToIndex = (column: string): number => {
+    const normalized = column.trim().toUpperCase()
+    let index = 0
+
+    for (let i = 0; i < normalized.length; i += 1) {
+        index = index * 26 + (normalized.charCodeAt(i) - 64)
+    }
+
+    return index - 1
+}
+
+const getCellValue = (row: unknown[], column: string): unknown => {
+    const index = columnLetterToIndex(column)
+    return row[index] ?? ''
+}
+
 const normalizeRow = (
-    row: Record<string, unknown>,
+    row: unknown[],
     columns: ServerConfig['columns'],
 ): ResultRow => {
-    const series = columns.series.map(col => parseNumber(row[col]))
+    const series = columns.series.map(col => parseNumber(getCellValue(row, col)))
 
     return {
-        klass: String(row[columns.klass] ?? ''),
-        namn: String(row[columns.namn] ?? ''),
-        klubb: String(row[columns.klubb] ?? ''),
+        klass: String(getCellValue(row, columns.klass) ?? ''),
+        namn: String(getCellValue(row, columns.namn) ?? ''),
+        klubb: String(getCellValue(row, columns.klubb) ?? ''),
         series,
-        x: parseNumber(row[columns.antalX]),
-        summa: parseNumber(row[columns.summa]),
+        x: parseNumber(getCellValue(row, columns.antalX)),
+        summa: parseNumber(getCellValue(row, columns.summa)),
     }
 }
 
@@ -159,6 +177,7 @@ export default function ShootingResultsTV(): ReactElement {
 
                 setServerConfig({
                     enableScrolling: nextServerConfig.enableScrolling ?? defaultServerConfig.enableScrolling,
+                    competitionName: nextServerConfig.competitionName ?? defaultServerConfig.competitionName,
                     columns: nextServerConfig.columns ?? defaultServerConfig.columns,
                 })
 
@@ -181,13 +200,16 @@ export default function ShootingResultsTV(): ReactElement {
                 }
 
                 const sheet = workbook.Sheets[selectedSheetName]
-                const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+                const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+                    header: 1,
                     defval: '',
                 })
 
-                const parsed = raw.map(row =>
-                    normalizeRow(row, nextServerConfig.columns ?? defaultServerConfig.columns),
-                )
+                const parsed = raw
+                    .slice(1)
+                    .map(row =>
+                        normalizeRow(row, nextServerConfig.columns ?? defaultServerConfig.columns),
+                    )
 
                 setRows(parsed)
             } catch (error) {
@@ -234,7 +256,7 @@ export default function ShootingResultsTV(): ReactElement {
     return (
         <div className="page">
             <header className="header">
-                <h1 className="title">Resultat</h1>
+                <h1 className="title">{serverConfig.competitionName ?? 'Resultat'}</h1>
             </header>
 
             <main className="content">
