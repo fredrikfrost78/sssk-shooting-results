@@ -3,15 +3,13 @@
   "version": "1.0.0",
   "description": "Visning av skytteresultat",
   "author": "Fredrik Frost",
-  "main": "electron/main.cjs",
+  "main": "main.cjs",
   "repository": {
     "type": "git",
     "url": "https://github.com/fredrikfrost78/sssk-shooting-results.git"
   },
   "scripts": {
     "dev": "vite",
-    "backend": "node server.js",
-    "start:all": "concurrently \"npm run backend\" \"npm run dev\"",
     "build": "vite build",
     "electron": "npm run build && electron .",
     "pack:win": "npm run build && electron-builder --win nsis --x64 --publish never",
@@ -24,18 +22,14 @@
     "productName": "SSSK Shooting Results",
     "extraResources": [
       {
-        "from": "server.js",
-        "to": "server.js"
-      },
-      {
         "from": "server-config.json",
         "to": "server-config.json"
       }
     ],
     "files": [
       "dist/**",
-      "electron/**",
-      "server.js",
+      "main.cjs",
+      "preload.cjs",
       "server-config.json",
       "package.json",
       "node_modules/**"
@@ -46,5 +40,19 @@
     "win": {
       "target": "nsis"
     }
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1",
+    "electron": "^41.0.4",
+    "electron-builder": "^26.8.1",
+    "vite": "^8.0.2"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "xlsx": "^0.18.5"
   }
 }

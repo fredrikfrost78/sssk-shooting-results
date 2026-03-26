@@ -38,11 +38,13 @@
 
 .header {
     padding: 16px 24px;
+    background: #111111;
 }
 
 .title {
     font-size: 40px;
     margin: 0 0 16px 0;
+    color: #ffffff;
 }
 
 .file-name {

@@ -1,7 +1,5 @@
 import {type ReactElement, useEffect, useMemo, useRef, useState} from 'react'
-import * as XLSX from 'xlsx'
 import './ShootingResultsTV.css'
-import config from '../config/appConfig.json'
 
 type ResultRow = {
     klass: string
@@ -27,17 +25,7 @@ type ServerConfig = {
     }
 }
 
-type GroupedResults = Record<string, ResultRow[]>
-
-const parseNumber = (value: unknown): number => {
-    if (typeof value === 'number') return value
-    if (typeof value === 'string') {
-        const trimmed = value.trim().replace(',', '.')
-        const parsed = Number(trimmed)
-        return Number.isFinite(parsed) ? parsed : 0
-    }
-    return 0
-}
+//default setup
 const defaultServerConfig: ServerConfig = {
     enableScrolling: true,
     competitionName: 'Resultat',
@@ -53,56 +41,46 @@ const defaultServerConfig: ServerConfig = {
     },
 }
 
-const columnLetterToIndex = (column: string): number => {
-    const normalized = column.trim().toUpperCase()
-    let index = 0
-
-    for (let i = 0; i < normalized.length; i += 1) {
-        index = index * 26 + (normalized.charCodeAt(i) - 64)
-    }
-
-    return index - 1
+type LoadResultsResponse = {
+    config: ServerConfig
+    rows: ResultRow[]
 }
 
-const getCellValue = (row: unknown[], column: string): unknown => {
-    const index = columnLetterToIndex(column)
-    return row[index] ?? ''
+const config = {
+    pollingIntervalMs: 5000,
 }
 
-const normalizeRow = (
-    row: unknown[],
-    columns: ServerConfig['columns'],
-): ResultRow => {
-    const series = columns.series.map(col => parseNumber(getCellValue(row, col)))
+type GroupedResults = Record<string, ResultRow[]>
 
-    return {
-        klass: String(getCellValue(row, columns.klass) ?? ''),
-        namn: String(getCellValue(row, columns.namn) ?? ''),
-        klubb: String(getCellValue(row, columns.klubb) ?? ''),
-        series,
-        x: parseNumber(getCellValue(row, columns.antalX)),
-        summa: parseNumber(getCellValue(row, columns.summa)),
-    }
-}
-
+//group an sort the rows by shooting-class and then by score
 const groupAndSort = (rows: ResultRow[]): GroupedResults => {
     const grouped: GroupedResults = {}
 
     for (const row of rows) {
-        if (!row.klass || !row.namn) continue
-        if (!grouped[row.klass]) grouped[row.klass] = []
-        grouped[row.klass].push(row)
+        if (!row.klass || !row.namn || row.namn.trim() === '') {
+            continue
+        }
+        const normalizedKlass = row.klass.trim().toUpperCase()
+
+        if (!grouped[normalizedKlass]) {
+            grouped[normalizedKlass] = []
+        }
+        grouped[normalizedKlass].push(row)
     }
 
     for (const klass of Object.keys(grouped)) {
         grouped[klass].sort((a, b) => {
-            if (b.summa !== a.summa) return b.summa - a.summa
+            if (b.summa !== a.summa) {
+                return b.summa - a.summa
+            }
             return a.namn.localeCompare(b.namn, 'sv')
         })
     }
 
     return Object.fromEntries(
-        Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b, 'sv')),
+        Object.entries(grouped).sort(([a], [b]) =>
+            a.toUpperCase().localeCompare(b.toUpperCase(), 'sv'),
+        ),
     )
 }
 
@@ -112,6 +90,7 @@ export default function ShootingResultsTV(): ReactElement {
     const [serverConfig, setServerConfig] = useState<ServerConfig>(defaultServerConfig)
     const groupedResults = useMemo(() => groupAndSort(rows), [rows])
 
+    //render sections
     const renderSections = (): ReactElement[] =>
         Object.entries(groupedResults).map(([klass, resultRows], groupIndex) => (
             <section key={`${klass}-${groupIndex}`} className="section">
@@ -135,15 +114,15 @@ export default function ShootingResultsTV(): ReactElement {
                     <tbody>
                     {[
                         ...resultRows,
-                        ...Array(1).fill(null)
+                        ...new Array(1).fill(null)
                     ].map((row, index) =>
                         row ? (
                             <tr key={`${klass}-${row.namn}-${index}`} className="results-row">
                                 <td className="results-cell">{index + 1}</td>
                                 <td className="results-cell">{row.namn}</td>
                                 <td className="results-cell">{row.klubb}</td>
-                                {row.series.map((value: string, i: number) => (
-                                    <td key={i} className="results-cell">{value}</td>
+                                {row.series.map((value: string, _: number) => (
+                                    <td key={value} className="results-cell">{value}</td>
                                 ))}
                                 <td className="results-cell">{row.x}</td>
                                 <td className="results-cell total-cell">{row.summa}</td>
@@ -165,74 +144,52 @@ export default function ShootingResultsTV(): ReactElement {
         ))
 
     useEffect(() => {
+        //load the results from the server
         const load = async (): Promise<void> => {
             try {
-                const configResponse = await fetch('http://localhost:3001/config')
-
-                if (!configResponse.ok) {
-                    throw new Error(`Kunde inte läsa server-config (${configResponse.status})`)
-                }
-
-                const nextServerConfig = (await configResponse.json()) as ServerConfig
+                const result = (await window.api.loadResults()) as LoadResultsResponse
 
                 setServerConfig({
-                    enableScrolling: nextServerConfig.enableScrolling ?? defaultServerConfig.enableScrolling,
-                    competitionName: nextServerConfig.competitionName ?? defaultServerConfig.competitionName,
-                    columns: nextServerConfig.columns ?? defaultServerConfig.columns,
+                    enableScrolling: result.config.enableScrolling ?? defaultServerConfig.enableScrolling,
+                    competitionName: result.config.competitionName ?? defaultServerConfig.competitionName,
+                    columns: result.config.columns ?? defaultServerConfig.columns,
                 })
 
-                const response = await fetch(config.resultsUrl)
-
-                if (!response.ok) {
-                    throw new Error(`Kunde inte läsa filen: ${config.resultsUrl} (${response.status})`)
-                }
-
-                const buffer = await response.arrayBuffer()
-                const workbook = XLSX.read(buffer, { type: 'array' })
-
-                const selectedSheetName =
-                    nextServerConfig.sheetName && workbook.Sheets[nextServerConfig.sheetName]
-                        ? nextServerConfig.sheetName
-                        : workbook.SheetNames[nextServerConfig.sheetIndex ?? 0]
-
-                if (!selectedSheetName) {
-                    throw new Error('Kunde inte hitta något blad i Excel-filen')
-                }
-
-                const sheet = workbook.Sheets[selectedSheetName]
-                const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-                    header: 1,
-                    defval: '',
-                })
-
-                const parsed = raw
-                    .slice(1)
-                    .map(row =>
-                        normalizeRow(row, nextServerConfig.columns ?? defaultServerConfig.columns),
-                    )
-
-                setRows(parsed)
+                setRows(result.rows)
             } catch (error) {
                 console.error('Fel vid inläsning av resultatfil:', error)
             }
         }
 
         void load()
+
+        const unsubscribe = window.api.onResultsChanged(() => {
+            void load()
+        })
+
         const interval = window.setInterval(() => {
             void load()
         }, config.pollingIntervalMs)
 
-        return () => window.clearInterval(interval)
+        return () => {
+            unsubscribe()
+            window.clearInterval(interval)
+        }
     }, [])
 
+    //update by serverconfig
     useEffect(() => {
         const container = scrollContainerRef.current
-        if (!serverConfig.enableScrolling || !container || rows.length === 0) return
+        if (!serverConfig.enableScrolling || !container || rows.length === 0) {
+            return
+        }
 
         let paused = false
 
         const interval = window.setInterval(() => {
-            if (paused) return
+            if (paused) {
+                return
+            }
 
             const maxScrollTop = container.scrollHeight - container.clientHeight
 
