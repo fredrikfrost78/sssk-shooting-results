@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron')
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const XLSX = require('xlsx')
@@ -6,7 +6,17 @@ const XLSX = require('xlsx')
 let mainWindow = null
 let resultsWatcher = null
 let watchDebounceTimeout = null
-const bundledServerConfig = require('./server-config.json')
+const isLoggingEnabled = false
+function getBundledConfigPath() {
+    if (app.isPackaged) {
+        return path.join(process.resourcesPath, 'server-config.json')
+    }
+    return path.join(__dirname, 'server-config.json')
+}
+
+const bundledServerConfig = JSON.parse(
+    fs.readFileSync(getBundledConfigPath(), 'utf-8')
+)
 
 //if local return this folder, else return where the executable is
 function getPortableBaseDir() {
@@ -29,6 +39,9 @@ function getMainLogPath() {
 
 //log to file
 function logMain(message) {
+    if (!isLoggingEnabled) {
+        return
+    }
     const line = `[${new Date().toISOString()}] ${message}\n`
 
     try {
@@ -201,11 +214,9 @@ function isValidResultRow(row) {
         return false
     }
 
-    if (normalizedKlubb === 'KLUBB' && row.summa === 0 && row.x === 0 && row.series.every(value => value === 0)) {
-        return false
-    }
+    return !(normalizedKlubb === 'KLUBB' && row.summa === 0 && row.x === 0 && row.series.every(value => value === 0));
 
-    return true
+
 }
 
 //register IPC handlers for the renderer to call
@@ -215,7 +226,15 @@ function registerIpcHandlers() {
     })
 
     ipcMain.handle('config:save', async (_event, nextConfig) => {
-        const savedConfig = writeConfig(nextConfig)
+        const currentConfig = readConfig()
+        const savedConfig = writeConfig({
+            ...currentConfig,
+            ...nextConfig,
+            columns: {
+                ...currentConfig.columns,
+                ...(nextConfig?.columns || {}),
+            },
+        })
         startResultsWatcher()
         return savedConfig
     })
@@ -285,6 +304,14 @@ function registerIpcHandlers() {
         startResultsWatcher()
         return savedConfig
     })
+
+    ipcMain.handle('config:reset', async () => {
+        const resetConfig = writeConfig({
+            ...bundledServerConfig,
+        })
+        startResultsWatcher()
+        return resetConfig
+    })
 }
 
 //create the main window
@@ -351,6 +378,61 @@ function createMenu() {
                 },
                 { type: 'separator' },
                 { role: 'quit', label: 'Avsluta' },
+            ],
+        },
+        {
+            label: 'Inställningar',
+            submenu: [
+                {
+                    label: 'Öppna config-fil',
+                    click: async () => {
+                        try {
+                            const configPath = getConfigPath()
+                            await shell.openPath(configPath)
+                        } catch (error) {
+                            logMain(`Kunde inte öppna config-fil: ${error instanceof Error ? error.stack || error.message : String(error)}`)
+                            dialog.showErrorBox(
+                                'Kunde inte öppna config-fil',
+                                error instanceof Error ? error.message : String(error),
+                            )
+                        }
+                    },
+                },
+                {
+                    label: 'Återställ standardinställningar',
+                    click: async () => {
+                        if (!mainWindow) return
+
+                        try {
+                            const result = await dialog.showMessageBox(mainWindow, {
+                                type: 'warning',
+                                buttons: ['Avbryt', 'Återställ'],
+                                defaultId: 1,
+                                cancelId: 0,
+                                title: 'Återställ standardinställningar',
+                                message: 'Vill du återställa server-config.json till standardvärden?',
+                                detail: 'Detta ersätter nuvarande inställningar med de värden som följer med appen.',
+                            })
+
+                            if (result.response !== 1) {
+                                return
+                            }
+
+                            writeConfig({
+                                ...bundledServerConfig,
+                            })
+
+                            startResultsWatcher()
+                            mainWindow.webContents.send('results:changed')
+                        } catch (error) {
+                            logMain(`Kunde inte återställa config: ${error instanceof Error ? error.stack || error.message : String(error)}`)
+                            dialog.showErrorBox(
+                                'Kunde inte återställa config',
+                                error instanceof Error ? error.message : String(error),
+                            )
+                        }
+                    },
+                },
             ],
         },
     ]

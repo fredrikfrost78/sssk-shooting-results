@@ -20,6 +20,7 @@
   "build": {
     "appId": "se.sssk.shootingresults",
     "productName": "SSSK Shooting Results",
+    "icon": "public/img.png",
     "extraResources": [
       {
         "from": "server-config.json",
@@ -38,7 +39,8 @@
       "buildResources": "build"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/icon.png"
     }
   },
   "devDependencies": {

@@ -52,7 +52,7 @@ const config = {
 
 type GroupedResults = Record<string, ResultRow[]>
 
-//group an sort the rows by shooting-class and then by score
+//group an sort the rows by shooting-class and then by score and name
 const groupAndSort = (rows: ResultRow[]): GroupedResults => {
     const grouped: GroupedResults = {}
 
@@ -70,9 +70,17 @@ const groupAndSort = (rows: ResultRow[]): GroupedResults => {
 
     for (const klass of Object.keys(grouped)) {
         grouped[klass].sort((a, b) => {
+            // 1. Sort by total score (summa)
             if (b.summa !== a.summa) {
                 return b.summa - a.summa
             }
+
+            // 2. Then by number of X (antal kryss)
+            if (b.x !== a.x) {
+                return b.x - a.x
+            }
+
+            // 3. Finally by name
             return a.namn.localeCompare(b.namn, 'sv')
         })
     }
@@ -102,8 +110,8 @@ export default function ShootingResultsTV(): ReactElement {
                         <th className="results-header-cell">Placering</th>
                         <th className="results-header-cell">Namn</th>
                         <th className="results-header-cell name-column">Klubb</th>
-                        {serverConfig.columns.series.map((_, index) => (
-                            <th key={index} className="results-header-cell">
+                        {serverConfig.columns.series.map((series, index) => (
+                            <th key={series} className="results-header-cell">
                                 Serie {index + 1}
                             </th>
                         ))}
@@ -147,7 +155,7 @@ export default function ShootingResultsTV(): ReactElement {
         //load the results from the server
         const load = async (): Promise<void> => {
             try {
-                const result = (await window.api.loadResults()) as LoadResultsResponse
+                const result = (await globalThis.api.loadResults()) as LoadResultsResponse
 
                 setServerConfig({
                     enableScrolling: result.config.enableScrolling ?? defaultServerConfig.enableScrolling,
@@ -163,17 +171,17 @@ export default function ShootingResultsTV(): ReactElement {
 
         void load()
 
-        const unsubscribe = window.api.onResultsChanged(() => {
+        const unsubscribe = globalThis.api.onResultsChanged(() => {
             void load()
         })
 
-        const interval = window.setInterval(() => {
+        const interval = globalThis.setInterval(() => {
             void load()
         }, config.pollingIntervalMs)
 
         return () => {
             unsubscribe()
-            window.clearInterval(interval)
+            globalThis.clearInterval(interval)
         }
     }, [])
 
@@ -186,7 +194,7 @@ export default function ShootingResultsTV(): ReactElement {
 
         let paused = false
 
-        const interval = window.setInterval(() => {
+        const interval = globalThis.setInterval(() => {
             if (paused) {
                 return
             }
@@ -196,7 +204,7 @@ export default function ShootingResultsTV(): ReactElement {
             if (container.scrollTop + 1 >= maxScrollTop) {
                 paused = true
 
-                window.setTimeout(() => {
+                globalThis.setTimeout(() => {
                     container.scrollTop = 0
                     paused = false
                 }, 1000)
@@ -207,7 +215,7 @@ export default function ShootingResultsTV(): ReactElement {
             container.scrollTop += 1
         }, 40)
 
-        return () => window.clearInterval(interval)
+        return () => globalThis.clearInterval(interval)
     }, [rows, serverConfig.enableScrolling])
 
     return (
@@ -228,6 +236,8 @@ export default function ShootingResultsTV(): ReactElement {
                         style={{overflowY: serverConfig.enableScrolling ? 'auto' : 'hidden'}}
                     >
                         <div className="scroll-content">
+                            <div style={{height: '10vh'}} />
+
                             {renderSections()}
 
                             <div style={{height: '80vh'}}/>
