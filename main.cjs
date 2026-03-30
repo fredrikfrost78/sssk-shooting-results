@@ -132,7 +132,7 @@ function findLatestExcelFile(resultsDir) {
     const files = fs.readdirSync(resultsDir)
         .filter(fileName => {
             const lower = fileName.toLowerCase()
-            return lower.endsWith('.xlsx') || lower.endsWith('.xls')
+            return lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.xlsm')
         })
         .map(fileName => {
             const fullPath = path.join(resultsDir, fileName)
